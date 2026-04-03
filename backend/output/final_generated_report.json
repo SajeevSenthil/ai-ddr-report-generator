@@ -1,0 +1,107 @@
+{
+  "property_issue_summary": "The review identified 3 consolidated observation(s) across Hall, Parking. The main reported issue types are crack, dampness, leakage. Thermal findings were treated as supporting evidence only.",
+  "area_wise_observations": [
+    {
+      "area": "Hall",
+      "observations": [
+        {
+          "issue": "Dampness at skirting level",
+          "category": "dampness",
+          "source": "inspection",
+          "images": [
+            "artifacts\\images\\inspection_report_cid01_p10_ref.png",
+            "artifacts\\images\\thermal_report_cid01_p1_ref.png",
+            "artifacts\\images\\thermal_report_cid01_p2_ref.png"
+          ],
+          "evidence": [
+            "Observed dampness at the skirting level",
+            "Observed dampness & efflorescence on",
+            "Observed mild dampness at the ceiling of",
+            "Supporting thermal reference attached from thermal report."
+          ],
+          "probable_root_cause": "Probable moisture ingress or prolonged water exposure near the affected surface.",
+          "severity": "medium",
+          "severity_reasoning": "Severity marked medium because the issue may worsen if untreated but available evidence is not critical.",
+          "recommended_actions": [
+            "Inspect adjacent plumbing, waterproofing, and exterior exposure points.",
+            "Carry out moisture measurement and open-up inspection before repair."
+          ],
+          "additional_notes": [
+            "Not Available"
+          ],
+          "conflicts": [],
+          "missing_information": []
+        },
+        {
+          "issue": "External wall cracks",
+          "category": "crack",
+          "source": "inspection",
+          "images": [
+            "artifacts\\images\\inspection_report_cid01_p10_ref.png"
+          ],
+          "evidence": [
+            "Observed cracks on the External wall of building"
+          ],
+          "probable_root_cause": "Probable movement, shrinkage, or localized structural stress.",
+          "severity": "medium",
+          "severity_reasoning": "Severity marked medium because the issue may worsen if untreated but available evidence is not critical.",
+          "recommended_actions": [
+            "Assess crack width, pattern, and recurrence.",
+            "Refer to a structural engineer if cracks are progressive or wide."
+          ],
+          "additional_notes": [
+            "Not Available"
+          ],
+          "conflicts": [],
+          "missing_information": []
+        }
+      ]
+    },
+    {
+      "area": "Parking",
+      "observations": [
+        {
+          "issue": "Leakage at parking ceiling",
+          "category": "leakage",
+          "source": "inspection",
+          "images": [
+            "artifacts\\images\\thermal_report_cid01_p3_ref.png",
+            "artifacts\\images\\thermal_report_cid01_p4_ref.png"
+          ],
+          "evidence": [
+            "Observed leakage at the Parking ceiling",
+            "Supporting thermal reference attached from thermal report."
+          ],
+          "probable_root_cause": "Probable active or historical leakage from plumbing joints, wet areas, or exterior envelope.",
+          "severity": "medium",
+          "severity_reasoning": "Severity marked medium because the issue may worsen if untreated but available evidence is not critical.",
+          "recommended_actions": [
+            "Trace the leakage source through targeted plumbing and waterproofing checks.",
+            "Rectify the source before cosmetic restoration."
+          ],
+          "additional_notes": [
+            "Not Available"
+          ],
+          "conflicts": [],
+          "missing_information": []
+        }
+      ]
+    }
+  ],
+  "probable_root_cause": "Probable moisture ingress or prolonged water exposure near the affected surface.\nProbable movement, shrinkage, or localized structural stress.\nProbable active or historical leakage from plumbing joints, wet areas, or exterior envelope.",
+  "severity_assessment": "Hall: medium - Severity marked medium because the issue may worsen if untreated but available evidence is not critical.\nParking: medium - Severity marked medium because the issue may worsen if untreated but available evidence is not critical.",
+  "recommended_actions": [
+    "Inspect adjacent plumbing, waterproofing, and exterior exposure points.",
+    "Carry out moisture measurement and open-up inspection before repair.",
+    "Assess crack width, pattern, and recurrence.",
+    "Refer to a structural engineer if cracks are progressive or wide.",
+    "Trace the leakage source through targeted plumbing and waterproofing checks.",
+    "Rectify the source before cosmetic restoration."
+  ],
+  "additional_notes": [
+    "Not Available"
+  ],
+  "missing_or_unclear_information": [
+    "Not Available"
+  ]
+}
