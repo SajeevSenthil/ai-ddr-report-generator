@@ -66,7 +66,15 @@ class EnrichedObservation(Observation):
     missing_information: list[str] = Field(default_factory=list)
 
 
+class GeneralInformation(BaseModel):
+    customer_name_unit: str = "Not Available"
+    site_address: str = "Not Available"
+    type_of_structure_and_age: str = "Not Available"
+    date_of_inspection: str = "Not Available"
+
+
 class StructuredReport(BaseModel):
+    general_information: GeneralInformation = Field(default_factory=GeneralInformation)
     property_issue_summary: str
     area_wise_observations: list[dict[str, Any]]
     probable_root_cause: str

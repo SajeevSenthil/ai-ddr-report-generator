@@ -10,10 +10,14 @@ from pydantic import BaseModel, Field
 
 from backend.models import ExtractedImage, ParsedDocument, SourceType, StructuredReport
 from backend.pipeline import DDRPipeline
+from backend.services.approval_service import ApprovalService
+from backend.services.pdf_service import PDFService
 from backend.utils.formatter import render_markdown_report
 
 app = FastAPI(title="AI DDR Report Generator", version="0.1.0")
 pipeline = DDRPipeline()
+pdf_service = PDFService()
+approval_service = ApprovalService()
 artifacts_dir = Path("artifacts/images")
 artifacts_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/artifacts", StaticFiles(directory=str(artifacts_dir.parent)), name="artifacts")
@@ -47,6 +51,15 @@ class GenerateFromContentRequest(BaseModel):
     output_json_path: str | None = None
 
 
+class ApprovalRequest(BaseModel):
+    property_name: str
+    manager_email: str
+    client_email: str
+    report_url: str
+    approve_url: str
+    reject_url: str
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -72,12 +85,16 @@ def generate_report(request: GenerateRequest, http_request: Request) -> dict:
             encoding="utf-8",
         )
 
+    pdf_path = _build_pdf_output_path(inspection_path.stem)
+    pdf_service.render_report(result.structured_report, pdf_path, subject_name=inspection_path.stem)
+
     structured_report = _externalize_structured_report(result.structured_report, http_request)
     markdown_report = render_markdown_report(structured_report)
 
     return {
         "structured_report": structured_report.model_dump(),
         "markdown_report": markdown_report,
+        "pdf_path": str(pdf_path),
         "counts": {
             "raw_observations": len(result.observations),
             "deduplicated_observations": len(result.deduplicated_observations),
@@ -105,12 +122,16 @@ async def generate_report_from_files(
 
         result = pipeline.run(inspection_path, thermal_path)
 
+    pdf_path = _build_pdf_output_path(inspection_pdf.filename or "inspection.pdf")
+    pdf_service.render_report(result.structured_report, pdf_path, subject_name=inspection_pdf.filename or "Inspection")
+
     structured_report = _externalize_structured_report(result.structured_report, request)
     markdown_report = render_markdown_report(structured_report)
 
     return {
         "structured_report": structured_report.model_dump(),
         "markdown_report": markdown_report,
+        "pdf_path": str(pdf_path),
         "counts": {
             "raw_observations": len(result.observations),
             "deduplicated_observations": len(result.deduplicated_observations),
@@ -133,12 +154,16 @@ def generate_report_from_content(request: GenerateFromContentRequest, http_reque
             encoding="utf-8",
         )
 
+    pdf_path = _build_pdf_output_path(request.inspection.file_name)
+    pdf_service.render_report(result.structured_report, pdf_path, subject_name=request.inspection.file_name)
+
     structured_report = _externalize_structured_report(result.structured_report, http_request)
     markdown_report = render_markdown_report(structured_report)
 
     return {
         "structured_report": structured_report.model_dump(),
         "markdown_report": markdown_report,
+        "pdf_path": str(pdf_path),
         "counts": {
             "raw_observations": len(result.observations),
             "deduplicated_observations": len(result.deduplicated_observations),
@@ -191,3 +216,38 @@ def _externalize_image_path(path: str, request: Request) -> str:
     except ValueError:
         return path
     return str(request.base_url).rstrip("/") + "/artifacts/" + str(relative).replace("\\", "/")
+
+
+def _build_pdf_output_path(source_name: str) -> Path:
+    lowered = source_name.lower()
+    if "cid01" in lowered:
+        name = "final_report_cid01.pdf"
+    else:
+        stem = Path(source_name).stem or "final_report"
+        safe_stem = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in stem)
+        name = f"{safe_stem}_final_report.pdf"
+    return Path("backend/output") / name
+
+
+@app.post("/api/v1/ddr/approval-package")
+def create_approval_package(request: ApprovalRequest) -> dict:
+    package = approval_service.build_package(
+        property_name=request.property_name,
+        manager_email=request.manager_email,
+        client_email=request.client_email,
+        report_url=request.report_url,
+        approve_url=request.approve_url,
+        reject_url=request.reject_url,
+    )
+    return {
+        "manager_email": {
+            "to": request.manager_email,
+            "subject": package.manager_email_subject,
+            "body": package.manager_email_body,
+        },
+        "client_email": {
+            "to": request.client_email,
+            "subject": package.client_email_subject,
+            "body": package.client_email_body,
+        },
+    }
