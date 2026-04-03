@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "area",
+    "issue",
+    "category",
+    "source",
+    "images",
+    "confidence",
+    "thermal_support",
+    "temperature_range",
+    "evidence",
+    "page_references",
+    "raw_text"
+  ],
+  "properties": {
+    "area": { "type": "string" },
+    "issue": { "type": "string" },
+    "category": {
+      "type": "string",
+      "enum": ["dampness", "crack", "leakage", "structural", "thermal_anomaly", "other"]
+    },
+    "source": {
+      "type": "string",
+      "enum": ["inspection", "thermal"]
+    },
+    "images": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "thermal_support": { "type": "boolean" },
+    "temperature_range": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["minimum_celsius", "maximum_celsius"],
+      "properties": {
+        "minimum_celsius": { "type": ["number", "null"] },
+        "maximum_celsius": { "type": ["number", "null"] }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "page_references": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "raw_text": {
+      "type": ["string", "null"]
+    }
+  }
+}
