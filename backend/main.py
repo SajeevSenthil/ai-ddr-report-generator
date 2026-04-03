@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -227,6 +228,19 @@ def _build_pdf_output_path(source_name: str) -> Path:
         safe_stem = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in stem)
         name = f"{safe_stem}_final_report.pdf"
     return Path("backend/output") / name
+
+
+@app.get("/api/v1/ddr/report-file")
+def get_report_file(name: str) -> FileResponse:
+    safe_name = Path(name).name
+    report_path = Path("backend/output") / safe_name
+    if not report_path.exists():
+        raise HTTPException(status_code=404, detail=f"Report not found: {safe_name}")
+    return FileResponse(
+        path=report_path,
+        media_type="application/pdf",
+        filename=safe_name,
+    )
 
 
 @app.post("/api/v1/ddr/approval-package")

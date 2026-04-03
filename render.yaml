@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ai-ddr-report-generator
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn --app-dir . backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DDR_ENABLE_LLM
+        value: "true"
+      - key: OPENAI_MODEL
+        value: gpt-5
+      - key: OPENAI_API_KEY
+        sync: false
