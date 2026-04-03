@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class LLMService:
@@ -16,7 +19,7 @@ class LLMService:
         model: str | None = None,
         system_prompt_path: str | None = None,
     ) -> None:
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o")
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-5")
         self.enabled = os.getenv("DDR_ENABLE_LLM", "false").lower() == "true"
         self.system_prompt_path = system_prompt_path or str(
             Path(__file__).resolve().parents[2] / "prompt.md"
@@ -31,10 +34,27 @@ class LLMService:
     def _load_system_prompt(self) -> str:
         prompt_path = Path(self.system_prompt_path)
         if not prompt_path.exists():
-            return (
-                "You are a structured DDR generation system. Do not hallucinate. "
-                "Return strict JSON only."
-            )
+            return """
+You are an AI system for generating a Detailed Diagnosis Report (DDR) from inspection and thermal documents.
+
+Your job is to:
+- extract only relevant observations from source documents
+- combine inspection and thermal evidence logically
+- avoid duplicates and repetitive checklist noise
+- identify conflicts or uncertainty explicitly
+- write in simple, client-friendly language
+- return strict JSON only
+
+Hard rules:
+- Do not invent facts not present in the provided documents
+- If data is missing, write "Not Available"
+- If data conflicts, state the conflict explicitly
+- Inspection report is the primary source
+- Thermal report is supporting evidence and should not override unsupported inspection findings
+- Use only relevant images from the extracted source image list
+- Do not attach unrelated images
+- Keep outputs concise but complete
+""".strip()
         return prompt_path.read_text(encoding="utf-8")
 
     def generate_json(
