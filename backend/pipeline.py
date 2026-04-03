@@ -36,7 +36,7 @@ class DDRPipeline:
         deduplicated = self.deduplication_agent.run(observations)
         deduplicated = self._attach_thermal_supporting_references(deduplicated, bundle)
         enriched = self.reasoning_agent.run(deduplicated)
-        structured = self.structuring_agent.run(enriched)
+        structured = self.structuring_agent.run(enriched, bundle)
         markdown = render_markdown_report(structured)
         return PipelineResult(
             observations=observations,

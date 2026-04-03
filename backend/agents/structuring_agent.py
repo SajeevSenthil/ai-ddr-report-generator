@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import re
 
-from backend.models import EnrichedObservation, StructuredReport
+from backend.models import EnrichedObservation, GeneralInformation, ParsedBundle, StructuredReport
 from backend.services.llm_service import LLMService
 
 
@@ -12,31 +13,57 @@ class StructuringAgent:
     def __init__(self, llm_service: LLMService | None = None) -> None:
         self.llm_service = llm_service or LLMService()
 
-    def run(self, observations: list[EnrichedObservation]) -> StructuredReport:
+    def run(self, observations: list[EnrichedObservation], bundle: ParsedBundle | None = None) -> StructuredReport:
         if self.llm_service.is_configured():
             try:
-                return self._run_with_llm(observations)
+                return self._run_with_llm(observations, bundle)
             except Exception:
                 pass
-        return self._run_with_rules(observations)
+        return self._run_with_rules(observations, bundle)
 
-    def _run_with_llm(self, observations: list[EnrichedObservation]) -> StructuredReport:
+    def _run_with_llm(self, observations: list[EnrichedObservation], bundle: ParsedBundle | None = None) -> StructuredReport:
+        general_information = self._extract_general_information(bundle)
         response = self.llm_service.generate_json(
             task_name="structuring_agent",
             instructions=(
-                "Convert enriched observations into the mandatory DDR sections. "
-                "Use simple client-friendly language and preserve missing information explicitly. "
+                "Convert the enriched observations into the final DDR structure.\n"
+                "You must produce a richly detailed, client-friendly, paragraph-style report.\n"
+                "The report must contain these top-level fields:\n"
+                "- general_information\n"
+                "- property_issue_summary\n"
+                "- area_wise_observations\n"
+                "- probable_root_cause\n"
+                "- severity_assessment\n"
+                "- recommended_actions\n"
+                "- additional_notes\n"
+                "- missing_or_unclear_information\n"
+                "Rules:\n"
+                "- general_information must include customer_name_unit, site_address, type_of_structure_and_age, date_of_inspection\n"
+                "- area_wise_observations must cover all supported impacted areas and flagged structural elements when present\n"
+                "- each observation entry should prefer narrative writing and may include these keys when useful:\n"
+                "  issue, narrative, negative_side, positive_side, category, source, images, thermal_images, visual_images, thermal_caption, visual_caption, evidence, probable_root_cause, severity, severity_reasoning, recommended_actions, additional_notes, conflicts, missing_information\n"
+                "- write complete paragraphs, not field dumps\n"
+                "- preserve only relevant images under the correct area observation\n"
+                "- do not invent metadata or temperatures; use 'Not Available' when missing\n"
+                "- deduplicate repeated checklist noise into one stronger narrative per area/issue\n"
                 "Return JSON matching the structured report format."
             ),
-            payload={"observations": [item.model_dump() for item in observations]},
+            payload={
+                "general_information_hint": general_information.model_dump(),
+                "inspection_file_name": bundle.inspection.file_name if bundle else "Not Available",
+                "inspection_text_sample": (bundle.inspection.full_text[:12000] if bundle else "Not Available"),
+                "thermal_text_sample": (bundle.thermal.full_text[:8000] if bundle else "Not Available"),
+                "observations": [item.model_dump() for item in observations],
+            },
         )
         return StructuredReport.model_validate(response)
 
-    def _run_with_rules(self, observations: list[EnrichedObservation]) -> StructuredReport:
+    def _run_with_rules(self, observations: list[EnrichedObservation], bundle: ParsedBundle | None = None) -> StructuredReport:
         grouped: dict[str, list[EnrichedObservation]] = defaultdict(list)
         for observation in observations:
             grouped[observation.area].append(observation)
 
+        general_information = self._extract_general_information(bundle)
         area_entries = []
         root_causes: list[str] = []
         severity_lines: list[str] = []
@@ -52,9 +79,16 @@ class StructuringAgent:
                     "observations": [
                         {
                             "issue": item.issue,
+                            "narrative": self._build_area_narrative(item),
+                            "negative_side": item.issue,
+                            "positive_side": self._infer_positive_side(item),
                             "category": item.category.value,
                             "source": item.source.value,
                             "images": item.images or ["Image Not Available"],
+                            "thermal_images": [image for image in item.images if "thermal" in image.lower()],
+                            "visual_images": [image for image in item.images if "inspection" in image.lower()],
+                            "thermal_caption": self._build_image_caption("THERMAL REFERENCE", area, item.issue),
+                            "visual_caption": self._build_image_caption("VISUAL REFERENCE", area, self._infer_positive_side(item)),
                             "evidence": item.evidence,
                             "probable_root_cause": item.probable_root_cause,
                             "severity": item.severity.value,
@@ -81,6 +115,7 @@ class StructuringAgent:
 
         summary = self._build_summary(observations)
         return StructuredReport(
+            general_information=general_information,
             property_issue_summary=summary,
             area_wise_observations=area_entries,
             probable_root_cause="\n".join(dict.fromkeys(root_causes)) or "Not Available",
@@ -101,6 +136,74 @@ class StructuringAgent:
             f"The review identified {len(observations)} consolidated observation(s) across {area_text}. "
             f"The main reported issue types are {category_text}. Thermal findings were treated as supporting evidence only."
         )
+
+    def _extract_general_information(self, bundle: ParsedBundle | None) -> GeneralInformation:
+        if not bundle:
+            return GeneralInformation()
+        text = bundle.inspection.full_text
+        return GeneralInformation(
+            customer_name_unit=self._search_value(text, [r"Customer Name\s*[:\-]\s*(.+)", r"Customer Name\s+(.+)"]),
+            site_address=self._search_value(text, [r"Address\s*[:\-]\s*(.+)", r"Site Address\s*[:\-]\s*(.+)"]),
+            type_of_structure_and_age=self._build_structure_age(text),
+            date_of_inspection=self._search_value(text, [r"Inspection Date and Time\s*[:\-]\s*(.+)", r"Inspection Date\s*[:\-]\s*(.+)"]),
+        )
+
+    def _search_value(self, text: str, patterns: list[str]) -> str:
+        for pattern in patterns:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                value = " ".join(match.group(1).split())
+                value = re.split(r"(Email|Mobile|Address|Property Age|Property Type|Floors)", value, maxsplit=1)[0].strip(" |,;")
+                if value:
+                    return value
+        return "Not Available"
+
+    def _build_structure_age(self, text: str) -> str:
+        property_type = self._search_value(text, [r"Property Type\s*[:\-]\s*(.+)"])
+        property_age = self._search_value(text, [r"Property Age \(In years\)\s*[:\-]\s*(.+)", r"Property Age\s*[:\-]\s*(.+)"])
+        if property_type == "Not Available" and property_age == "Not Available":
+            return "Not Available"
+        if property_age == "Not Available":
+            return property_type
+        if property_type == "Not Available":
+            return f"{property_age} years old"
+        return f"{property_type} | {property_age} years old"
+
+    def _build_area_narrative(self, item: EnrichedObservation) -> str:
+        area = item.area if item.area != "Not Available" else "the affected area"
+        issue = item.issue or "visible damage"
+        positive_side = self._infer_positive_side(item)
+        temp_text = " Thermal support is available from the submitted infrared report." if item.thermal_support else ""
+        source_clause = (
+            f" Based on the combined review, this negative-side distress appears to be linked to {positive_side}."
+            if positive_side != "Not Available"
+            else " The exact positive-side source could not be confirmed from the available records."
+        )
+        return (
+            f"During our inspection of {area}, we observed {issue}.{temp_text}"
+            f"{source_clause} This interpretation is based on the inspection evidence and the related supporting references available in the source documents."
+        )
+
+    def _infer_positive_side(self, item: EnrichedObservation) -> str:
+        for evidence in item.evidence:
+            if evidence.lower().startswith("positive side:"):
+                value = evidence.split(":", 1)[1].strip()
+                if value:
+                    return value
+        evidence_text = " ".join(item.evidence).lower()
+        if "tile joint" in evidence_text or "gap" in evidence_text:
+            return "open or deteriorated tile joints on the exposed side"
+        if "plumbing" in evidence_text or "pipe" in evidence_text or "trap" in evidence_text:
+            return "a plumbing-related defect on the exposed side"
+        if "external wall" in evidence_text or "crack" in evidence_text:
+            return "cracks or openings at the exposed side"
+        if "hollow" in evidence_text:
+            return "tile hollowness and debonding at the exposed side"
+        return "Not Available"
+
+    def _build_image_caption(self, label: str, area: str, description: str) -> str:
+        text = (description or "Not Available").upper()
+        return f"{label} - {area.upper()}: {text}"
 
     def _consolidate_area_items(self, items: list[EnrichedObservation]) -> list[EnrichedObservation]:
         grouped: dict[str, list[EnrichedObservation]] = defaultdict(list)

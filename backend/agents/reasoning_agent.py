@@ -22,9 +22,22 @@ class ReasoningAgent:
         response = self.llm_service.generate_json(
             task_name="reasoning_agent",
             instructions=(
-                "For each observation, provide only evidence-backed probable root cause, "
-                "severity, reasoning, recommended actions, notes, conflicts, and missing information. "
-                "If evidence is insufficient, write 'Not Available'. Return JSON with key 'observations'."
+                "For each observation, provide evidence-backed analysis only.\n"
+                "You must add:\n"
+                "- probable_root_cause\n"
+                "- severity\n"
+                "- severity_reasoning\n"
+                "- recommended_actions\n"
+                "- additional_notes\n"
+                "- conflicts\n"
+                "- missing_information\n"
+                "Rules:\n"
+                "- Do not invent engineering conclusions that are unsupported by the evidence.\n"
+                "- Keep thermal findings as supporting evidence unless they clearly indicate a relevant anomaly.\n"
+                "- If there is not enough information, write 'Not Available'.\n"
+                "- If something is uncertain or conflicting, mention it explicitly.\n"
+                "- Recommended actions should be practical and client-friendly.\n"
+                "Return JSON with key 'observations'."
             ),
             payload={"observations": [item.model_dump() for item in observations]},
         )
